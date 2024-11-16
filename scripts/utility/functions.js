@@ -4,7 +4,7 @@
 export function timeOfDay() {
   var now = new Date();
   var hrs = now.getHours();
-  if (hrs >= 12) {
+  if (hrs >= 13) {
     hrs = hrs - 12;
   }
   let hrsMs = hrs * (3.6e6);
@@ -43,84 +43,90 @@ export function removeEmpty(ns, arr) {
 
 //finds the largest number in an array
 export function findLargest(ns, arr, dpt) {
-  // finds largest value in an array (max money), returns the index
-  let max = arr[0];
-  for (let i = 0; i < arr.length; i++) {
+  //sets the first item of the array as the largest
+  var max = arr[0];
+  for (var i = 0; i < arr.length; i++) {
+    //filters through all objects in array to find largest value
     if (arr[i] > max) {
       max = arr[i];
     }
   }
-  if (typeof dpt === "number") {
-    var tempArr = Array.from(arr);
-    var iMax = arr.indexOf(max);
-    // repeats until reached requested depth
-    for (let i = 0; i < (dpt - 1); i++) {
-      tempArr.splice(iMax, 1);
-      // find largest value in tempArr
-      var tempMax = tempArr[0];
-      for (let x = 0; x < tempArr.length; x++) {
-        if (tempArr[x] > tempMax) {
-          tempMax = tempArr[x];
+  if (!(dpt > 1)) {
+    //returns max if depth is 1 or undefined
+    return arr.indexOf(max);
+  }
+  if (dpt > 1) {
+    //will filter out the largest values, iterated dpt times, to return the 2nd, 3rd, 4th, etc largest value
+    for (var i = 1; i < dpt; i++) {
+      //removes largest value
+      let indexOfMax = arr.indexOf(max);
+      arr[indexOfMax] = 0;
+
+      max = arr[0];
+      for (var i = 0; i < arr.length; i++) {
+        //filters through all objects in array to find largest value
+        if (arr[i] > max) {
+          max = arr[i];
         }
       }
-      // finds the largest value in tempArr, to splice on repeat
-      iMax = tempArr.indexOf(tempMax);
     }
-    // finds the dpt largest value in arr
-    iMax = arr.indexOf(tempMax);
-    max = arr[iMax];
   }
-  let iLocation = arr.indexOf(max);
-  return iLocation;
+  return arr.indexOf(max);
 }
 
 //finds the best servers to hack, returns an array
-export async function target(ns, depth = (ns.args[0] - 1), exclFirst = ns.args[1], printer = ns.args[2]) {
+export async function target(ns, depth, exclFirst, printer) {
   var serversTotal = serverList(ns);
-
   var openServersTotal = [];
-  // attempts to open all available servers
+  var moneyList = [];
+  var orderedServers = [];
+  var orderedMoney = [];
+
+  //attempts to open all servers
   for (var i = 0; i < serversTotal.length; i++) {
     if (ns.hasRootAccess(serversTotal[i]) == false) {
-      ns.exec("crack.js", "home", 1, serversTotal[i]);
-      await ns.sleep(20);
+      ns.exec("crack.js", "home", 1, serversTotal[i])
+      await ns.sleep(10);
     }
-  }
-  // creates a new array that consists only of servers with root access
-  for (var i = 0; i < serversTotal.length; i++) {
+    //adds open servers to new array
     if (ns.hasRootAccess(serversTotal[i]) == true) {
       openServersTotal.push(serversTotal[i]);
     }
   }
 
-  var moneys = [];
+  //creates a parallel array of maximum money
   for (var i = 0; i < openServersTotal.length; i++) {
-    ns.exec("crack.js", "home", 1, openServersTotal[i]);
     let temp = ns.getServerMaxMoney(openServersTotal[i]);
-    moneys.push(temp);
+    moneyList.push(temp);
   }
 
-  var servers = [];
-  if (exclFirst == false) {
-    var iVarLargestMoneys = findLargest(ns, moneys, (i + 1));
-    servers.push(openServersTotal[iVarLargestMoneys]);
+  //creates new parallel arrays of servers with the most money in descending order
+  for (var i = 0; i < moneyList.length; i++) {
+    var iMax = findLargest(ns, moneyList, (i + 1));
+    orderedServers.push(openServersTotal[iMax]);
+    orderedMoney.push(moneyList[iMax]);
   }
+
+  if (exclFirst == true) {
+    orderedServers.splice(0, 1);
+    orderedMoney.splice(0, 1);
+    var iterate = 1;
+  } else {
+    var iterate = 0;
+    depth = depth - 1;
+  }
+
   if (printer == true) {
-    var iLargestMoneys = findLargest(ns, moneys);
-    var largestMoneys = moneys[iLargestMoneys]
-    var largestServer = openServersTotal[iLargestMoneys];
-    ns.tprint("Optimal Target (1): ", largestServer, " with ", abbr(largestMoneys));
-  }
-  if (typeof depth === "number") {
-    for (var i = 0; i < depth; i++) {
-      var iVarLargestMoneys = findLargest(ns, moneys, (i + 2));
-      servers.push(openServersTotal[iVarLargestMoneys]);
-      if (printer == true) {
-        ns.tprint("Optimal Target (", (i + 2), "): ", openServersTotal[iVarLargestMoneys], " with ", abbr(moneys[iVarLargestMoneys]));
-      }
+    for (var i = iterate; i < depth; i++) {
+      ns.tprint("Optimal Target (", (i + 1), "): ", orderedServers[i], " with ", abbr(orderedMoney[i]))
     }
   }
-  return servers;
+
+  for (var i = 0; i < orderedServers.length; i++) {
+    //copies scripts to servers
+    ns.scp(["earlyHackTemplate.js", "managerHack.js", "managerGrow.js", "managerWeaken.js", "functions.js"], orderedServers[i], "home");
+  }
+  return orderedServers;
 }
 
 //abbreviates numbers to simple notation
@@ -163,51 +169,39 @@ export function serverList(ns) {
 }
 
 //brings target server to maximum money and minimum security
-export async function setServerUp(ns, target, maxMoney, minSecurity, maxRam, first) {
-  var currentMoneyAvailable = ns.getServerMoneyAvailable(target);
-  var currentSecurity = ns.getServerSecurityLevel(target);
-  var hostname = ns.getHostname();
-  ns.print("- - - - -");
+export async function setServerUp(ns, target, maxMoney, minSecurity) {
   while ((currentMoneyAvailable < (maxMoney - 1000)) || (currentSecurity > (minSecurity + 0.1))) {
     var currentSecurity = ns.getServerSecurityLevel(target);
     var currentMoneyAvailable = ns.getServerMoneyAvailable(target);
     var ttSleep = 0;
     var server = ns.getServer(target);
-    var cores = ns.getServer(hostname).cpucores;
+    var cores = ns.getServer("home").cpucores;
     var player = ns.getPlayer();
-    if (currentMoneyAvailable < (maxMoney - 1000)) { //grows to max if not at near max
+    if (currentMoneyAvailable < (maxMoney - 1000)) {
+      if (currentMoneyAvailable == maxMoney) {
+        break;
+      }
       var growThread = ns.formulas.hacking.growThreads(server, player, maxMoney, cores);
-      if ((growThread * 1.75) > maxRam) { //if threads to grow to max require too much RAM, will only do as many threads as possible
+      if ((growThread * 1.75) > maxRam) {
         var growThread = Math.floor(maxRam / 1.75);
       }
-      ttSleep = ns.formulas.hacking.growTime(server, player);
-      var time = timeOfDay();
-
       ns.print("Growing(SU): ", target, " with ", growThread, " threads");
-      ns.print("...for ", ns.tFormat(ttSleep));
-      ns.print("...until ", msToTime(time + ttSleep));
-      
-      ns.exec("managerGrow.js", hostname, growThread, target, 0); //grows target if not at max money
-      
-      ns.print("- - - - -");
+      ns.exec("managerGrow.js", "home", growThread, target, 0); //grows target if not at max money
+      ttSleep = ns.formulas.hacking.growTime(server, player);
       await ns.sleep(ttSleep + 1000);
-    } else if (currentSecurity > (minSecurity + 0.1)) { //weakens security if money is near max and security isnt near lowest
+    } else if (currentSecurity > (minSecurity + 0.1)) {
+      if (currentSecurity == minSecurity) {
+        break;
+      }
       let startSL = server.hackDifficulty;
       let endSL = server.minDifficulty;
       var weakenThread = Math.ceil((startSL - endSL) / ns.weakenAnalyze(1, cores));
-      if ((weakenThread * 1.75) > maxRam) { //if threads to weaken to min require too much RAm, will only do as many threads as possible
+      if ((weakenThread * 1.75) > maxRam) {
         var weakenThread = Math.floor(maxRam / 1.75);
       }
-      ttSleep = ns.formulas.hacking.weakenTime(server, player);
-      var time = timeOfDay();
-      
       ns.print("Weakening(SU): ", target, " with ", weakenThread, " threads");
-      ns.print("...for ", ns.tFormat(ttSleep));
-      ns.print("...until ", msToTime(time + ttSleep));
-      
-      ns.exec("managerWeaken.js", hostname, weakenThread, target, 0); //weakens target if not at min security
-      
-      ns.print("- - - - -");
+      ns.exec("managerWeaken.js", "home", weakenThread, target, 0); //weakens target if not at min security
+      ttSleep = ns.formulas.hacking.weakenTime(server, player);
       await ns.sleep(ttSleep + 1000);
     }
   }
@@ -332,5 +326,108 @@ export async function main(ns, depth = (ns.args[0] - 1)) {
       ns.tprint("Optimal Target (", (i + 2), "): ", openServersTotal[iVarLargestMoneys], " with ", abbr(moneys[iVarLargestMoneys]));
     }
   }
+}
+
+
+export async function target(ns, depth = (ns.args[0] - 1), exclFirst = ns.args[1], printer = ns.args[2]) {
+  var serversTotal = serverList(ns);
+
+  var openServersTotal = [];
+  // attempts to open all available servers
+  for (var i = 0; i < serversTotal.length; i++) {
+    if (ns.hasRootAccess(serversTotal[i]) == false) {
+      ns.exec("crack.js", "home", 1, serversTotal[i]);
+      await ns.sleep(20);
+    }
+  }
+  // creates a new array that consists only of servers with root access
+  for (var i = 0; i < serversTotal.length; i++) {
+    if (ns.hasRootAccess(serversTotal[i]) == true) {
+      openServersTotal.push(serversTotal[i]);
+    }
+  }
+
+  var moneys = [];
+  for (var i = 0; i < openServersTotal.length; i++) {
+    ns.exec("crack.js", "home", 1, openServersTotal[i]);
+    let temp = ns.getServerMaxMoney(openServersTotal[i]);
+    moneys.push(temp);
+  }
+
+  var servers = [];
+  if (exclFirst == false) {
+    var iVarLargestMoneys = findLargest(ns, moneys, (i + 1));
+    servers.push(openServersTotal[iVarLargestMoneys]);
+
+    ns.tprint(openServersTotal[iVarLargestMoneys]);
+    ns.tprint(openServersTotal);
+    ns.tprint(iVarLargestMoneys);
+
+
+  }
+  if (printer == true) {
+    var iLargestMoneys = findLargest(ns, moneys);
+    var largestMoneys = moneys[iLargestMoneys]
+    var largestServer = openServersTotal[iLargestMoneys];
+    ns.tprint("Optimal Target (1): ", largestServer, " with ", abbr(largestMoneys));
+    ns.tprint(servers);
+
+  }
+  if (typeof depth === "number") {
+    for (var i = 0; i < depth; i++) {
+      var iVarLargestMoneys = findLargest(ns, moneys, (i + 2));
+      servers.push(openServersTotal[iVarLargestMoneys]);
+      if (printer == true) {
+        ns.tprint("Optimal Target (", (i + 2), "): ", openServersTotal[iVarLargestMoneys], " with ", abbr(moneys[iVarLargestMoneys]));
+      }
+    }
+  }
+  ns.tprint("xxx", servers);
+  servers = removeEmpty(ns, servers);
+  for (var i = 0; i < servers.length; i++) {
+    ns.scp(["earlyHackTemplate.js", "managerHack.js", "managerGrow.js", "managerWeaken.js", "functions.js"], servers[i], "home");
+  }
+  return servers;
+}
+
+export function findLargest(ns, arr, dpt) {
+  // finds largest value in an array (max money), returns the index
+  var max = arr[0];
+  for (let i = 0; i < arr.length; i++) {
+    if (arr[i] > max) {
+      max = arr[i];
+    }
+  }
+  if (dpt > 1) {
+    var tempArr = Array.from(arr);
+    var iMax = arr.indexOf(max);
+    // repeats until reached requested depth
+    for (let i = 0; i < (dpt - 1); i++) {
+      tempArr.splice(iMax, 1);
+      // find largest value in tempArr
+      var tempMax = tempArr[0];
+      for (let x = 0; x < tempArr.length; x++) {
+        if (tempArr[x] > tempMax) {
+          tempMax = tempArr[x];
+        }
+      }
+      // finds the largest value in tempArr, to splice on repeat
+      iMax = tempArr.indexOf(tempMax);
+    }
+    // finds the dpt largest value in arr
+    iMax = arr.indexOf(tempMax);
+    max = arr[iMax];
+  }
+  if (dpt <= 0 || typeof dpt != 'number') {
+    var max = arr[0];
+    for (let i = 0; i < arr.length; i++) {
+      if (arr[i] > max) {
+        max = arr[i];
+      }
+    }
+  }
+  ns.tprint("anfwnefuo: ", max, "    ", iMax);
+  let iLocation = arr.indexOf(max);
+  return iLocation;
 }
 */
