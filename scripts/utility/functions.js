@@ -130,17 +130,21 @@ export async function target(ns, depth, exclFirst, printer) {
 }
 
 //abbreviates numbers to simple notation
-export function abbr(val) {
+export function abbr(val, places) {
+  var plcs = 2;
+  if (typeof places == 'number') {
+    plcs = Math.floor(places);
+  }
   if (val < 1e3) {
-    return val;
+    return val.toFixed(plcs);
   } else if (val >= 1e3 && val < 1e6) {
-    return ((val / 1e3).toFixed(2) + "K");
+    return ((val / 1e3).toFixed(plcs) + "K");
   } else if (val >= 1e6 && val < 1e9) {
-    return ((val / 1e6).toFixed(2) + "M");
+    return ((val / 1e6).toFixed(plcs) + "M");
   } else if (val >= 1e9 && val < 1e12) {
-    return ((val / 1e9).toFixed(2) + "B");
+    return ((val / 1e9).toFixed(plcs) + "B");
   } else {
-    return ((val / 1e12).toFixed(2) + "T");
+    return ((val / 1e12).toFixed(plcs) + "T");
   }
 }
 
