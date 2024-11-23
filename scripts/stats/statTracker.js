@@ -3,6 +3,8 @@ import {
 } from './functions.js'
 
 export async function main(ns) {
+  ns.disableLog('ALL');
+  checkPreviousInstance(ns);
   const end = Boolean(ns.args[0]); //0 for false, 1 for true
   const hashes = Boolean(ns.args[1]); //0 for false, 1 for true
   const hshRt = Boolean(ns.args[2]); //0 for false, 1 for true
@@ -12,71 +14,35 @@ export async function main(ns) {
   const hook1 = doc.getElementById('overview-extra-hook-1');
 
   while (true) {
+    ns.clearLog();
     var moneyProduction = getProduction(ns);
-    if (ns.args[0] == undefined) { //runs hashes, hshRt, and karma
+    if (end == false || ns.args[0] == undefined) {
       try {
         const headers = [];
         const values = [];
 
-        headers.push("Hashes");
-        values.push("#" + abbr(ns.hacknet.numHashes().toPrecision(5)));
-
-        headers.push("HshRt");
-        values.push("$" + abbr(moneyProduction.toPrecision(5)) + '/sec');
-
-        headers.push("Karma");
-        values.push(abbr(ns.heart.break()))
+        if (hashes == true || ns.args[0] == undefined) {
+          headers.push("Hashes");
+          values.push("#" + abbr(ns.hacknet.numHashes().toPrecision(5), 3));
+          ns.print("Tracking Hashes: true");
+        } else { ns.print("Tracking Hashes: false"); }
+        if (hshRt == true || ns.args[0] == undefined) {
+          headers.push("HshRt");
+          values.push("$" + abbr(moneyProduction.toPrecision(5)) + '/sec');
+          ns.print("Tracking Hash Rate: true");
+        } else { ns.print("Tracking Hash Rate: false"); }
+        if (karma == true || ns.args[0] == undefined) {
+          headers.push("Karma");
+          values.push("-" + abbr(Math.abs(ns.heart.break()), 3))
+          ns.print("Tracking Karma: true");
+        } else { ns.print("Tracking Karma: false"); }
 
         hook0.innerText = headers.join(" \n");
         hook1.innerText = values.join("\n");
       } catch (err) {
         ns.print("ERROR: Update Skipped: " + String(err));
       }
-    } else {
-      if (hashes == true) {
-        try {
-          const headers = [];
-          const values = [];
-
-          headers.push("Hashes");
-          values.push("#" + abbr(ns.hacknet.numHashes().toPrecision(5)));
-
-          hook0.innerText = headers.join(" \n");
-          hook1.innerText = values.join("\n");
-        } catch (err) {
-          ns.print("ERROR: Update Skipped: " + String(err));
-        }
-      }
-      if (hshRt == true) {
-        try {
-          const headers = [];
-          const values = [];
-
-          headers.push("HshRt");
-          values.push("$" + abbr(moneyProduction.toPrecision(5)) + '/sec');
-
-          hook0.innerText = headers.join(" \n");
-          hook1.innerText = values.join("\n");
-        } catch (err) {
-          ns.print("ERROR: Update Skipped: " + String(err));
-        }
-      }
-      if (karma == true) {
-        try {
-          const headers = [];
-          const values = [];
-
-          headers.push("Karma");
-          values.push(abbr(ns.heart.break()));
-
-          hook0.innerText = headers.join(" \n");
-          hook1.innerText = values.join("\n");
-        } catch (err) {
-          ns.print("ERROR: Update Skipped: " + String(err));
-        }
-      }
-    }
-    if (end == true) {
+    } else if (end == true) {
       try {
         const headers = [];
         const values = [];
@@ -105,4 +71,22 @@ function getProduction(ns) {
 
   var moneyProduction = totalProduction * ratioMoney
   return moneyProduction;
+}
+
+function checkPreviousInstance(ns) {
+  //kill previous versions of script
+  const self_name = ns.getScriptName();
+  const kill_list = [];
+  for (const process of ns.ps()) {
+    if (process.filename === self_name && process.pid !== ns.pid) {
+      kill_list.push(process.pid);
+    }
+  }
+  for (const pid of kill_list) {
+    if (!ns.kill(pid)) {
+      ns.tprint(`ERROR: Existing instance of ${self_name} with PID ${pid} is unkillable. Aborting.`);
+      ns.exit();
+    }
+  }
+  ns.tprint(`INFO: Previous instances of ${self_name} killed: ${kill_list.join(", ")}`);
 }
