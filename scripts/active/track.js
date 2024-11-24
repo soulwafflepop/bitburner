@@ -15,7 +15,7 @@ export async function main(ns, target = ns.args[0], hideTail = ns.args[1]) {
     ns.disableLog("sleep");
     if (!(hideTail == true)) {
       ns.tail();
-      ns.moveTail(950, 0);
+      ns.moveTail(930, 0);
     }
     while (true) {
       ns.clearLog();
@@ -34,17 +34,17 @@ export async function main(ns, target = ns.args[0], hideTail = ns.args[1]) {
       ns.print("$", abbr(maxMoney));
       ns.print("Current Money:");
       ns.print("$", abbr(currentMoney));
-      ns.print("Money Threshold:");
-      ns.print("$", abbr(moneyThresh));
+      //ns.print("Money Threshold:");
+      //ns.print("$", abbr(moneyThresh));
       ns.print("- - - - - - - - - -");
       ns.print("Minumum Security:");
       ns.print(minSecurity);
       ns.print("Current Security:");
       ns.print(currentSecurity);
-      ns.print("Security Threshold:");
-      ns.print(securityThresh);
+      //ns.print("Security Threshold:");
+      //ns.print(securityThresh);
       ns.print("- - - - - - - - - -");
-
+      /*
       if (currentMoney >= moneyThresh) {
         var enoughMoney = true;
       } else {
@@ -65,7 +65,8 @@ export async function main(ns, target = ns.args[0], hideTail = ns.args[1]) {
         ns.print("~Need to Weaken and Grow~");
       }
       ns.print("- - - - - - - - - -");
-      await ns.sleep(250);
+      */
+      await ns.sleep(50);
     }
   }
 }
