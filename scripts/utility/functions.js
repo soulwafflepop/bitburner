@@ -159,6 +159,26 @@ export function abbrRam(ram) {
   }
 }
 
+//generates a list of all open servers
+export async function openServerList(ns) {
+  var serversTotal = serverList(ns);
+  var openServers = [];
+  //gets list of open servers from all servers
+  for (var i = 0; i < serversTotal.length; i++) {
+    if (ns.hasRootAccess(serversTotal[i]) == false) {
+      ns.exec("crack.js", "home", 1, serversTotal[i]);
+      await ns.sleep(10);
+      if (ns.hasRootAccess(serversTotal[i]) == true) {
+        openServers.push(serversTotal[i]);
+      }
+    } else {
+      openServers.push(serversTotal[i]);
+    }
+  }
+  
+  return openServers;
+}
+
 
 //generates a list of all servers
 export function serverList(ns) {
